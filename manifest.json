@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Partslink24 Visible Data Extractor",
+  "description": "Extracts visible catalog data from Partslink24 pages you are browsing.",
+  "version": "0.1.0",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://*.partslink24.com/*",
+    "https://partslink24.com/*"
+  ],
+  "action": {
+    "default_title": "Toggle Partslink24 extractor"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.partslink24.com/*",
+        "https://partslink24.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
