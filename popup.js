@@ -61,8 +61,16 @@ async function requestExtraction(tabId) {
 
 async function copyJson() {
   if (!latestPayload) return;
+  const selectedRows = (latestPayload.parts || []).filter((part) => selectedPartIds.has(part.id));
+
+  if (selectedRows.length > 0) {
+    await navigator.clipboard.writeText(buildTsv(selectedRows));
+    setStatus(`Copied ${selectedRows.length} rows for Sheets.`);
+    return;
+  }
+
   await navigator.clipboard.writeText(JSON.stringify(latestPayload, null, 2));
-  setStatus("JSON copied to clipboard.");
+  setStatus("No rows selected, JSON copied instead.");
 }
 
 function downloadText(type) {
@@ -218,6 +226,24 @@ function buildCsv(payload) {
 function csvCell(value) {
   const text = String(value).replace(/\r?\n/g, " ").trim();
   return `"${text.replace(/"/g, '""')}"`;
+}
+
+function buildTsv(rows) {
+  const headers = ["partNumber", "name", "designation"];
+  const lines = [headers.join("\t")];
+
+  for (const row of rows) {
+    lines.push(headers.map((header) => tsvCell(row[header] ?? "")).join("\t"));
+  }
+
+  return lines.join("\n");
+}
+
+function tsvCell(value) {
+  return String(value)
+    .replace(/\r?\n/g, " ")
+    .replace(/\t/g, " ")
+    .trim();
 }
 
 function timestamp() {

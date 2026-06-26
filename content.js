@@ -236,6 +236,7 @@ function initFloatingPanel() {
       <div class="status" id="panelStatus">Extract visible parts from this page.</div>
       <div class="toolbar">
         <button type="button" class="primary" id="panelExtractBtn">Extract</button>
+        <button type="button" id="panelCopyBtn" disabled>Copy table</button>
         <button type="button" id="panelCsvBtn" disabled>CSV</button>
         <button type="button" id="panelJsonBtn" disabled>JSON</button>
       </div>
@@ -272,6 +273,7 @@ function initFloatingPanel() {
     status: root.getElementById("panelStatus"),
     selectedCount: root.getElementById("panelSelectedCount"),
     extractBtn: root.getElementById("panelExtractBtn"),
+    copyBtn: root.getElementById("panelCopyBtn"),
     csvBtn: root.getElementById("panelCsvBtn"),
     jsonBtn: root.getElementById("panelJsonBtn"),
     selectAllBtn: root.getElementById("panelSelectAllBtn"),
@@ -305,6 +307,12 @@ function initFloatingPanel() {
   elements.csvBtn.addEventListener("click", () => {
     const rows = (state.payload?.parts || []).filter((part) => state.selectedIds.has(part.id));
     downloadPanelText(buildPanelCsv(rows), "text/csv", `partslink24-selected-${timestamp()}.csv`);
+  });
+
+  elements.copyBtn.addEventListener("click", async () => {
+    const rows = (state.payload?.parts || []).filter((part) => state.selectedIds.has(part.id));
+    await copyPanelRows(rows);
+    elements.status.textContent = `Copied ${rows.length} rows for Sheets.`;
   });
 
   elements.jsonBtn.addEventListener("click", () => {
@@ -362,14 +370,16 @@ function extractParts(tables, textBlocks, partCandidates) {
 function partFromRecord(record) {
   const entries = Object.entries(record);
   const joined = entries.map(([, value]) => value).join(" ");
+  if (isVehicleMetadataText(joined)) return null;
+
   const partNumber = valueByKey(entries, /part|number|article|oem|ref/i) || firstPartNumber(joined);
   if (!partNumber) return null;
 
-  return {
+  return repairSplitPartSuffix({
     partNumber,
     name: valueByKey(entries, /name|description|designation|destination|title/i) || "",
     designation: valueByKey(entries, /designation|destination|description|model|vehicle|usage|remark|note/i) || ""
-  };
+  });
 }
 
 function partsFromVisibleRows() {
@@ -394,33 +404,37 @@ function partsFromTextBlocks(textBlocks, partCandidates) {
 
   if (parts.length > 0) return parts;
 
-  return partCandidates.map((candidate) => ({
-    partNumber: firstPartNumber(candidate) || candidate,
-    name: "",
-    designation: candidate,
-    source: "candidate"
-  }));
+  return partCandidates
+    .filter((candidate) => !isVehicleMetadataText(candidate))
+    .map((candidate) => ({
+      partNumber: firstPartNumber(candidate) || candidate,
+      name: "",
+      designation: candidate,
+      source: "candidate"
+    }));
 }
 
 function textToPart(text) {
   const cleaned = text.replace(/\s+/g, " ").trim();
   if (cleaned.length < 4 || cleaned.length > 240) return null;
+  if (isVehicleMetadataText(cleaned)) return null;
 
   const partNumber = firstPartNumber(cleaned);
   if (!partNumber) return null;
 
   const remaining = cleaned
+    .replace(/^\d{1,3}\s+/, "")
     .replace(partNumber, " ")
     .replace(/^\s*[-:|,;/]+\s*/, "")
     .replace(/\s+/g, " ")
     .trim();
 
-  return {
+  return repairSplitPartSuffix({
     partNumber,
     name: remaining,
     designation: remaining,
     source: "visible text"
-  };
+  });
 }
 
 function valueByKey(entries, pattern) {
@@ -429,26 +443,92 @@ function valueByKey(entries, pattern) {
 }
 
 function firstPartNumber(text) {
+  const source = String(text).toUpperCase().replace(/\s+/g, " ").trim();
+  const groupedNumber = source.match(/\b[A-Z0-9]{2,3}\s\d{3}\s\d{3}(?:\s[A-Z])?\b/);
+  if (groupedNumber) return groupedNumber[0];
+
+  const bmwNumber = source.match(/\b\d{2}\s\d{2}\s\d\s\d{3}\s\d{3}\b/);
+  if (bmwNumber) return bmwNumber[0];
+
+  const compactPartNumber = source.match(/\b[A-Z]{1,4}\d[A-Z0-9._-]{2,}\b/);
+  if (compactPartNumber && (compactPartNumber[0].match(/\d/g) || []).length >= 2) {
+    return compactPartNumber[0];
+  }
+
   const candidates = String(text)
     .toUpperCase()
     .match(/\b[A-Z0-9][A-Z0-9._-]{2,}(?: [A-Z0-9._-]{2,}){0,3}\b/g) || [];
 
-  const rejectPattern = /^(LOGIN|SEARCH|CATALOG|PARTSLINK24|VEHICLE|MODEL|GROUP|PRICE|QUANTITY|HYDRAULIC|AUTOMATIC)$/i;
+  const rejectPattern = /^(LOGIN|SEARCH|CATALOG|PARTSLINK24|VEHICLE|MODEL|GROUP|PRICE|QUANTITY|HYDRAULIC|AUTOMATIC|TOURING|POWER|TYPE|CODE|ENGINE)$/i;
+  const rejectWords = /\b(MODEL|DESIGNATION|TYPE CODE|ENGINE CODE|POWER|VEHICLE|IDENTIFICATION|DATE OF PRODUCTION|COLOR|UPHOLSTERY|MARKET|DRIVE)\b/i;
 
   for (const candidate of candidates) {
     const value = candidate.replace(/\s+/g, " ").trim();
     const words = value.split(" ");
     const hasDigit = /\d/.test(value);
+    const digitCount = (value.match(/\d/g) || []).length;
     const looksShortEnough = value.length >= 4 && value.length <= 28;
     const hasTooManyWords = words.length > 4;
     const looksLikeSentence = words.filter((word) => /^[A-Z]{4,}$/.test(word)).length > 2;
+    const hasDescriptionWord = rejectWords.test(value);
+    const weakVehicleCode = /^[A-Z]?\d{2,3}[A-Z]?(\s+[A-Z][A-Z0-9']*){1,2}$/i.test(value);
 
-    if (hasDigit && looksShortEnough && !hasTooManyWords && !looksLikeSentence && !rejectPattern.test(value)) {
+    if (
+      hasDigit &&
+      digitCount >= 4 &&
+      looksShortEnough &&
+      !hasTooManyWords &&
+      !looksLikeSentence &&
+      !hasDescriptionWord &&
+      !weakVehicleCode &&
+      !rejectPattern.test(value)
+    ) {
       return value;
     }
   }
 
   return "";
+}
+
+function repairSplitPartSuffix(part) {
+  const suffixPattern = /^\s*(?:\(\d+\)\s*)?([A-Z])\s+(.+)$/i;
+  const positionPattern = /^\s*\(\d+\)\s*/;
+  const basePattern = /^[A-Z0-9]{2,3}\s\d{3}\s\d{3}$/i;
+
+  if (!basePattern.test(part.partNumber)) {
+    return {
+      ...part,
+      name: String(part.name || "").replace(positionPattern, "").trim(),
+      designation: String(part.designation || "").replace(positionPattern, "").trim()
+    };
+  }
+
+  const nameMatch = String(part.name || "").match(suffixPattern);
+  if (!nameMatch) return part;
+
+  const suffix = nameMatch[1].toUpperCase();
+  const repairedNumber = `${part.partNumber} ${suffix}`.replace(/\s+/g, " ").trim();
+  const repairedName = nameMatch[2].trim();
+  const designation = String(part.designation || part.name || "");
+  const designationMatch = designation.match(suffixPattern);
+
+  return {
+    ...part,
+    partNumber: repairedNumber,
+    name: repairedName.replace(positionPattern, "").trim(),
+    designation: designationMatch ? designationMatch[2].trim() : repairedName
+  };
+}
+
+function isVehicleMetadataText(text) {
+  const normalized = String(text).replace(/\s+/g, " ").trim();
+  const metadataPattern = /^(VEHICLE IDENTIFICATION|VEHICLE IDENTIFICATION NO\.?|MODEL DESIGNATION|TYPE CODE|ENGINE CODE|POWER|DATE OF PRODUCTION|COLOR|UPHOLSTERY|MARKET SPECIFICA|MARKET SPECIFICATION|DRIVE)\b/i;
+  const hasCatalogNumber = /\b\d{2}\s\d{2}\s\d\s\d{3}\s\d{3}\b/.test(normalized);
+
+  if (hasCatalogNumber) return false;
+  if (metadataPattern.test(normalized)) return true;
+
+  return /\b(MODEL DESIGNATION|TYPE CODE|ENGINE CODE|VEHICLE IDENTIFICATION|DATE OF PRODUCTION)\b/i.test(normalized);
 }
 
 function dedupeParts(parts) {
@@ -530,6 +610,7 @@ function updatePanelSelection(elements, state) {
   elements.selectedCount.textContent = String(selected);
   elements.selectAllBtn.disabled = total === 0;
   elements.clearBtn.disabled = total === 0;
+  elements.copyBtn.disabled = total === 0 || selected === 0;
   elements.csvBtn.disabled = total === 0 || selected === 0;
   elements.jsonBtn.disabled = !state.payload;
 }
@@ -543,6 +624,44 @@ function buildPanelCsv(rows) {
   }
 
   return lines.join("\n");
+}
+
+async function copyPanelRows(rows) {
+  const tableText = buildPanelTsv(rows);
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(tableText);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = tableText;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.append(textarea);
+  textarea.focus();
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+function buildPanelTsv(rows) {
+  const headers = ["partNumber", "name", "designation"];
+  const lines = [headers.join("\t")];
+
+  for (const row of rows) {
+    lines.push(headers.map((header) => tsvCell(row[header] || "")).join("\t"));
+  }
+
+  return lines.join("\n");
+}
+
+function tsvCell(value) {
+  return String(value)
+    .replace(/\r?\n/g, " ")
+    .replace(/\t/g, " ")
+    .trim();
 }
 
 function csvCell(value) {
