@@ -194,6 +194,11 @@ function initFloatingPanel() {
         text-align: center;
       }
 
+      .positionCol {
+        width: 74px;
+        text-align: center;
+      }
+
       .partCol {
         width: 150px;
         font-weight: 700;
@@ -250,13 +255,14 @@ function initFloatingPanel() {
           <thead>
             <tr>
               <th class="selectCol">Export</th>
+              <th class="positionCol">Position</th>
               <th class="partCol">Part Number</th>
               <th class="nameCol">Name / Description</th>
               <th>Designation / Destination</th>
             </tr>
           </thead>
           <tbody id="panelPartsBody">
-            <tr><td colspan="4" class="empty">No data extracted yet.</td></tr>
+            <tr><td colspan="5" class="empty">No data extracted yet.</td></tr>
           </tbody>
         </table>
       </div>
@@ -376,6 +382,7 @@ function partFromRecord(record) {
   if (!partNumber) return null;
 
   return repairSplitPartSuffix({
+    position: valueByKey(entries, /^pos\.?$|position/i) || firstPosition(joined),
     partNumber,
     name: valueByKey(entries, /name|description|designation|destination|title/i) || "",
     designation: valueByKey(entries, /designation|destination|description|model|vehicle|usage|remark|note/i) || ""
@@ -407,8 +414,9 @@ function partsFromTextBlocks(textBlocks, partCandidates) {
   return partCandidates
     .filter((candidate) => !isVehicleMetadataText(candidate))
     .map((candidate) => ({
-      partNumber: firstPartNumber(candidate) || candidate,
-      name: "",
+    partNumber: firstPartNumber(candidate) || candidate,
+    position: "",
+    name: "",
       designation: candidate,
       source: "candidate"
     }));
@@ -422,8 +430,9 @@ function textToPart(text) {
   const partNumber = firstPartNumber(cleaned);
   if (!partNumber) return null;
 
+  const position = firstPosition(cleaned);
   const remaining = cleaned
-    .replace(/^\d{1,3}\s+/, "")
+    .replace(/^\(?\d{1,3}\)?\s+/, "")
     .replace(partNumber, " ")
     .replace(/^\s*[-:|,;/]+\s*/, "")
     .replace(/\s+/g, " ")
@@ -431,6 +440,7 @@ function textToPart(text) {
 
   return repairSplitPartSuffix({
     partNumber,
+    position,
     name: remaining,
     designation: remaining,
     source: "visible text"
@@ -440,6 +450,11 @@ function textToPart(text) {
 function valueByKey(entries, pattern) {
   const match = entries.find(([key, value]) => pattern.test(key) && String(value).trim());
   return match ? String(match[1]).trim() : "";
+}
+
+function firstPosition(text) {
+  const match = String(text).trim().match(/^\(?(\d{1,3})\)?\b/);
+  return match ? match[1] : "";
 }
 
 function firstPartNumber(text) {
@@ -536,7 +551,7 @@ function dedupeParts(parts) {
   const result = [];
 
   for (const part of parts) {
-    const key = `${part.partNumber}|${part.name}|${part.designation}`.toUpperCase();
+    const key = `${part.position}|${part.partNumber}|${part.name}|${part.designation}`.toUpperCase();
     if (!seen.has(key)) {
       seen.add(key);
       result.push(part);
@@ -549,6 +564,7 @@ function dedupeParts(parts) {
 function normalizePanelParts(parts) {
   return parts.map((part, index) => ({
     id: String(index),
+    position: part.position || "",
     partNumber: part.partNumber || "",
     name: part.name || "",
     designation: part.designation || ""
@@ -559,7 +575,7 @@ function renderPanelRows(elements, state) {
   const parts = state.payload?.parts || [];
 
   if (parts.length === 0) {
-    elements.body.innerHTML = '<tr><td colspan="4" class="empty">No matching parts found on the visible page.</td></tr>';
+    elements.body.innerHTML = '<tr><td colspan="5" class="empty">No matching parts found on the visible page.</td></tr>';
     return;
   }
 
@@ -567,6 +583,7 @@ function renderPanelRows(elements, state) {
     const row = document.createElement("tr");
     row.append(
       panelCheckboxCell(part, state, elements),
+      panelTextCell(part.position, "positionCol"),
       panelTextCell(part.partNumber, "partCol"),
       panelTextCell(part.name, "nameCol"),
       panelTextCell(part.designation, "")
@@ -616,7 +633,7 @@ function updatePanelSelection(elements, state) {
 }
 
 function buildPanelCsv(rows) {
-  const headers = ["partNumber", "name", "designation"];
+  const headers = ["position", "partNumber", "name", "designation"];
   const lines = [headers.map(csvCell).join(",")];
 
   for (const row of rows) {
@@ -647,7 +664,7 @@ async function copyPanelRows(rows) {
 }
 
 function buildPanelTsv(rows) {
-  const headers = ["partNumber", "name", "designation"];
+  const headers = ["position", "partNumber", "name", "designation"];
   const lines = [headers.join("\t")];
 
   for (const row of rows) {

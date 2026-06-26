@@ -180,12 +180,18 @@ tbody tr:hover {
 
 td:nth-child(2),
 th:nth-child(2) {
-  width: 160px;
-  font-weight: 700;
+  width: 82px;
+  text-align: center;
 }
 
 td:nth-child(3),
 th:nth-child(3) {
+  width: 160px;
+  font-weight: 700;
+}
+
+td:nth-child(4),
+th:nth-child(4) {
   width: 250px;
 }
 

@@ -111,14 +111,14 @@ function renderEmpty() {
   rowCount.textContent = "0";
   candidateCount.textContent = "0";
   selectedCount.textContent = "0";
-  partsBody.innerHTML = '<tr><td colspan="4" class="empty">No data extracted yet.</td></tr>';
+  partsBody.innerHTML = '<tr><td colspan="5" class="empty">No data extracted yet.</td></tr>';
   setActionsEnabled(false);
   setSelectionActionsEnabled(false);
 }
 
 function renderPartsTable(parts) {
   if (parts.length === 0) {
-    partsBody.innerHTML = '<tr><td colspan="4" class="empty">No matching parts found on the visible page.</td></tr>';
+    partsBody.innerHTML = '<tr><td colspan="5" class="empty">No matching parts found on the visible page.</td></tr>';
     return;
   }
 
@@ -126,6 +126,7 @@ function renderPartsTable(parts) {
     const row = document.createElement("tr");
     row.append(
       checkboxCell(part),
+      tableCell(part.position),
       tableCell(part.partNumber),
       tableCell(part.name),
       tableCell(part.designation)
@@ -137,6 +138,7 @@ function renderPartsTable(parts) {
 function normalizeParts(parts) {
   return parts.map((part, index) => ({
     id: String(index),
+    position: part.position || "",
     partNumber: part.partNumber || "",
     name: part.name || "",
     designation: part.designation || ""
@@ -215,7 +217,7 @@ function isPartslinkUrl(url) {
 
 function buildCsv(payload) {
   const rows = (payload.parts || []).filter((part) => selectedPartIds.has(part.id));
-  const headers = ["partNumber", "name", "designation"];
+  const headers = ["position", "partNumber", "name", "designation"];
   const lines = [headers.map(csvCell).join(",")];
   for (const row of rows) {
     lines.push(headers.map((header) => csvCell(row[header] ?? "")).join(","));
@@ -229,7 +231,7 @@ function csvCell(value) {
 }
 
 function buildTsv(rows) {
-  const headers = ["partNumber", "name", "designation"];
+  const headers = ["position", "partNumber", "name", "designation"];
   const lines = [headers.join("\t")];
 
   for (const row of rows) {
