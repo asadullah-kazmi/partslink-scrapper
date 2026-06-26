@@ -378,8 +378,11 @@ function partFromRecord(record) {
   const joined = entries.map(([, value]) => value).join(" ");
   if (isVehicleMetadataText(joined)) return null;
 
-  const partNumber = valueByKey(entries, /part|number|article|oem|ref/i) || firstPartNumber(joined);
+  const hasPartNumberColumn = entries.some(([key]) => /part\s*no\.?|part|number|article|oem|ref/i.test(key));
+  const explicitPartNumber = valueByKey(entries, /part\s*no\.?|part|number|article|oem|ref/i);
+  const partNumber = explicitPartNumber || (hasPartNumberColumn ? "" : firstPartNumber(joined));
   if (!partNumber) return null;
+  if (isOptionCode(partNumber)) return null;
 
   return repairSplitPartSuffix({
     position: valueByKey(entries, /^pos\.?$|position/i) || firstPosition(joined),
@@ -412,9 +415,12 @@ function partsFromTextBlocks(textBlocks, partCandidates) {
   if (parts.length > 0) return parts;
 
   return partCandidates
-    .filter((candidate) => !isVehicleMetadataText(candidate))
+    .filter((candidate) => {
+      const partNumber = firstPartNumber(candidate) || candidate;
+      return !isVehicleMetadataText(candidate) && !isOptionCode(partNumber);
+    })
     .map((candidate) => ({
-    partNumber: firstPartNumber(candidate) || candidate,
+      partNumber: firstPartNumber(candidate) || candidate,
     position: "",
     name: "",
       designation: candidate,
@@ -429,6 +435,7 @@ function textToPart(text) {
 
   const partNumber = firstPartNumber(cleaned);
   if (!partNumber) return null;
+  if (isOptionCode(partNumber)) return null;
 
   const position = firstPosition(cleaned);
   const remaining = cleaned
@@ -503,6 +510,10 @@ function firstPartNumber(text) {
   }
 
   return "";
+}
+
+function isOptionCode(value) {
+  return /^[SA]\d{3,4}A$/i.test(String(value).replace(/\s+/g, "").trim());
 }
 
 function repairSplitPartSuffix(part) {
@@ -817,7 +828,8 @@ function findPartCandidates(textBlocks) {
   for (const block of textBlocks) {
     for (const match of block.toUpperCase().matchAll(partPattern)) {
       const value = match[0].replace(/\s+/g, " ").trim();
-      if (!rejectPattern.test(value) && /\d/.test(value) && firstPartNumber(value)) {
+      const partNumber = firstPartNumber(value);
+      if (!rejectPattern.test(value) && /\d/.test(value) && partNumber && !isOptionCode(partNumber)) {
         values.add(value);
       }
     }
