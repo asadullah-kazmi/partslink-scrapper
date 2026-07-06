@@ -418,7 +418,18 @@ function extractParts(tables, textBlocks, partCandidates) {
     rows.push(...partsFromTextBlocks(textBlocks, partCandidates));
   }
 
-  return dedupeParts(rows).slice(0, 500);
+  return dedupeParts(rows).filter((part) => !isSmallHardwarePart(part)).slice(0, 500);
+}
+
+const SMALL_HARDWARE_PATTERN = /\b(nuts?|bolts?|screws?|clips?|clamps?|pins?|cups?|washers?|rivets?|fasteners?)\b/i;
+
+function isSmallHardwarePart(part) {
+  const searchableText = [
+    part.name,
+    part.designation
+  ].join(" ");
+
+  return SMALL_HARDWARE_PATTERN.test(searchableText);
 }
 
 function partFromRecord(record) {

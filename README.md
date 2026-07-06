@@ -24,6 +24,8 @@ A Manifest V3 Chrome extension for extracting data that is already visible while
 
 The in-page panel can be dragged by its title bar and resized from the lower-right corner. Use **Minimize** when you want it compact, or click the extension icon again to close it.
 
+Small hardware items are filtered out during extraction, including nuts, bolts, screws, clips, clamps, pins, cups, washers, rivets, and fasteners.
+
 After editing the extension files, open `chrome://extensions` and click the reload button on this extension before testing again.
 
 ## Google Sheets export setup
