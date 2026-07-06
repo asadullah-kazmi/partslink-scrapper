@@ -2,6 +2,9 @@ const extractBtn = document.getElementById("extractBtn");
 const copyBtn = document.getElementById("copyBtn");
 const csvBtn = document.getElementById("csvBtn");
 const jsonBtn = document.getElementById("jsonBtn");
+const sheetExportBtn = document.getElementById("sheetExportBtn");
+const sheetUrlInput = document.getElementById("sheetUrlInput");
+const sheetNameInput = document.getElementById("sheetNameInput");
 const selectAllBtn = document.getElementById("selectAllBtn");
 const clearSelectionBtn = document.getElementById("clearSelectionBtn");
 const statusText = document.getElementById("status");
@@ -18,8 +21,18 @@ extractBtn.addEventListener("click", extractVisibleData);
 copyBtn.addEventListener("click", copyJson);
 csvBtn.addEventListener("click", () => downloadText("csv"));
 jsonBtn.addEventListener("click", () => downloadText("json"));
+sheetExportBtn.addEventListener("click", exportSelectedToSheet);
+sheetUrlInput.addEventListener("input", () => {
+  chrome.storage.local.set({ sheetUrl: sheetUrlInput.value.trim() });
+  updateSelectionUi();
+});
+sheetNameInput.addEventListener("input", () => {
+  chrome.storage.local.set({ sheetName: sheetNameInput.value.trim() || "Sheet1" });
+});
 selectAllBtn.addEventListener("click", selectAllParts);
 clearSelectionBtn.addEventListener("click", clearSelection);
+
+loadSheetSettings();
 
 async function extractVisibleData() {
   setStatus("Extracting visible page data...");
@@ -176,6 +189,7 @@ function setActionsEnabled(enabled) {
   copyBtn.disabled = !enabled;
   csvBtn.disabled = !enabled || selectedPartIds.size === 0;
   jsonBtn.disabled = !enabled;
+  sheetExportBtn.disabled = !enabled || selectedPartIds.size === 0 || !sheetUrlInput.value.trim();
 }
 
 function setSelectionActionsEnabled(enabled) {
@@ -201,6 +215,45 @@ function updateSelectionUi() {
   selectedCount.textContent = String(selectedPartIds.size);
   setSelectionActionsEnabled(total > 0);
   csvBtn.disabled = total === 0 || selectedPartIds.size === 0;
+  sheetExportBtn.disabled = total === 0 || selectedPartIds.size === 0 || !sheetUrlInput.value.trim();
+}
+
+async function loadSheetSettings() {
+  const { sheetUrl = "", sheetName = "Sheet1" } = await chrome.storage.local.get(["sheetUrl", "sheetName"]);
+  sheetUrlInput.value = sheetUrl;
+  sheetNameInput.value = sheetName || "Sheet1";
+  updateSelectionUi();
+}
+
+async function exportSelectedToSheet() {
+  if (!latestPayload) return;
+
+  const rows = (latestPayload.parts || []).filter((part) => selectedPartIds.has(part.id));
+  if (rows.length === 0) return;
+
+  setStatus("Exporting selected rows to Google Sheets...");
+  sheetExportBtn.disabled = true;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "PL24_EXPORT_TO_SHEETS",
+      payload: {
+        sheetUrl: sheetUrlInput.value.trim(),
+        sheetName: sheetNameInput.value.trim() || "Sheet1",
+        rows
+      }
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Sheet export failed.");
+    }
+
+    setStatus(`Exported ${response.updatedRows || rows.length} rows to Google Sheets.`);
+  } catch (error) {
+    setStatus(error.message || "Sheet export failed.");
+  } finally {
+    updateSelectionUi();
+  }
 }
 
 function setStatus(message) {

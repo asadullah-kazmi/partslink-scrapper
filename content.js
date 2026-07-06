@@ -65,7 +65,7 @@ function initFloatingPanel() {
 
       .panel {
         display: grid;
-        grid-template-rows: auto auto auto 1fr;
+        grid-template-rows: auto auto auto auto auto 1fr;
         height: 100%;
       }
 
@@ -96,7 +96,8 @@ function initFloatingPanel() {
       }
 
       .toolbar,
-      .selection {
+      .selection,
+      .sheetExport {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -106,6 +107,10 @@ function initFloatingPanel() {
       }
 
       .selection {
+        padding-top: 0;
+      }
+
+      .sheetExport {
         padding-top: 0;
       }
 
@@ -129,6 +134,26 @@ function initFloatingPanel() {
       button:disabled {
         color: #98a4b1;
         cursor: not-allowed;
+      }
+
+      input[type="url"],
+      input[type="text"] {
+        min-width: 0;
+        min-height: 30px;
+        border: 1px solid #c7d0da;
+        border-radius: 6px;
+        color: #1f2933;
+        font: inherit;
+        font-size: 12px;
+        padding: 0 8px;
+      }
+
+      .sheetUrl {
+        flex: 1;
+      }
+
+      .sheetName {
+        width: 92px;
       }
 
       .primary {
@@ -229,6 +254,7 @@ function initFloatingPanel() {
       :host(.collapsed) .status,
       :host(.collapsed) .toolbar,
       :host(.collapsed) .selection,
+      :host(.collapsed) .sheetExport,
       :host(.collapsed) .tableWrap {
         display: none;
       }
@@ -249,6 +275,11 @@ function initFloatingPanel() {
         <button type="button" id="panelSelectAllBtn" disabled>Select all</button>
         <button type="button" id="panelClearBtn" disabled>Clear selection</button>
         <span class="count"><strong id="panelSelectedCount">0</strong> selected</span>
+      </div>
+      <div class="sheetExport">
+        <input id="panelSheetUrlInput" class="sheetUrl" type="url" placeholder="Paste Google Sheet link">
+        <input id="panelSheetNameInput" class="sheetName" type="text" value="Sheet1" aria-label="Sheet tab name">
+        <button type="button" id="panelSheetExportBtn" disabled>Export to Sheet</button>
       </div>
       <div class="tableWrap">
         <table>
@@ -282,11 +313,16 @@ function initFloatingPanel() {
     copyBtn: root.getElementById("panelCopyBtn"),
     csvBtn: root.getElementById("panelCsvBtn"),
     jsonBtn: root.getElementById("panelJsonBtn"),
+    sheetExportBtn: root.getElementById("panelSheetExportBtn"),
+    sheetUrlInput: root.getElementById("panelSheetUrlInput"),
+    sheetNameInput: root.getElementById("panelSheetNameInput"),
     selectAllBtn: root.getElementById("panelSelectAllBtn"),
     clearBtn: root.getElementById("panelClearBtn"),
     minimizeBtn: root.getElementById("minimizeBtn"),
     dragHandle: root.getElementById("dragHandle")
   };
+
+  loadPanelSheetSettings(elements, state);
 
   elements.extractBtn.addEventListener("click", () => {
     const payload = extractVisibleData();
@@ -323,6 +359,19 @@ function initFloatingPanel() {
 
   elements.jsonBtn.addEventListener("click", () => {
     downloadPanelText(JSON.stringify(state.payload, null, 2), "application/json", `partslink24-debug-${timestamp()}.json`);
+  });
+
+  elements.sheetExportBtn.addEventListener("click", async () => {
+    await exportPanelRowsToSheet(elements, state);
+  });
+
+  elements.sheetUrlInput.addEventListener("input", () => {
+    chrome.storage.local.set({ sheetUrl: elements.sheetUrlInput.value.trim() });
+    updatePanelSelection(elements, state);
+  });
+
+  elements.sheetNameInput.addEventListener("input", () => {
+    chrome.storage.local.set({ sheetName: elements.sheetNameInput.value.trim() || "Sheet1" });
   });
 
   elements.minimizeBtn.addEventListener("click", () => {
@@ -641,6 +690,43 @@ function updatePanelSelection(elements, state) {
   elements.copyBtn.disabled = total === 0 || selected === 0;
   elements.csvBtn.disabled = total === 0 || selected === 0;
   elements.jsonBtn.disabled = !state.payload;
+  elements.sheetExportBtn.disabled = total === 0 || selected === 0 || !elements.sheetUrlInput.value.trim();
+}
+
+async function loadPanelSheetSettings(elements, state) {
+  const { sheetUrl = "", sheetName = "Sheet1" } = await chrome.storage.local.get(["sheetUrl", "sheetName"]);
+  elements.sheetUrlInput.value = sheetUrl;
+  elements.sheetNameInput.value = sheetName || "Sheet1";
+  updatePanelSelection(elements, state);
+}
+
+async function exportPanelRowsToSheet(elements, state) {
+  const rows = (state.payload?.parts || []).filter((part) => state.selectedIds.has(part.id));
+  if (rows.length === 0) return;
+
+  elements.status.textContent = "Exporting selected rows to Google Sheets...";
+  elements.sheetExportBtn.disabled = true;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "PL24_EXPORT_TO_SHEETS",
+      payload: {
+        sheetUrl: elements.sheetUrlInput.value.trim(),
+        sheetName: elements.sheetNameInput.value.trim() || "Sheet1",
+        rows
+      }
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Sheet export failed.");
+    }
+
+    elements.status.textContent = `Exported ${response.updatedRows || rows.length} rows to Google Sheets.`;
+  } catch (error) {
+    elements.status.textContent = error.message || "Sheet export failed.";
+  } finally {
+    updatePanelSelection(elements, state);
+  }
 }
 
 function buildPanelCsv(rows) {

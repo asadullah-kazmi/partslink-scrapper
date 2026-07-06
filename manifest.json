@@ -3,15 +3,16 @@
   "name": "Partslink24 Visible Data Extractor",
   "description": "Extracts visible catalog data from Partslink24 pages you are browsing.",
   "version": "0.1.0",
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "downloads"
-  ],
+  "permissions": ["activeTab", "scripting", "downloads", "identity", "storage"],
   "host_permissions": [
     "https://*.partslink24.com/*",
-    "https://partslink24.com/*"
+    "https://partslink24.com/*",
+    "https://sheets.googleapis.com/*"
   ],
+  "oauth2": {
+    "client_id": "248651705918-mucqbcf1p3hp0qkcqdv92th52s5ralaa.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/spreadsheets"]
+  },
   "action": {
     "default_title": "Toggle Partslink24 extractor"
   },
@@ -20,13 +21,8 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://*.partslink24.com/*",
-        "https://partslink24.com/*"
-      ],
-      "js": [
-        "content.js"
-      ],
+      "matches": ["https://*.partslink24.com/*", "https://partslink24.com/*"],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ]
