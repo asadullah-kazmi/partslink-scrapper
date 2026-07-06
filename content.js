@@ -230,7 +230,7 @@ function initFloatingPanel() {
       }
 
       .nameCol {
-        width: 230px;
+        width: auto;
       }
 
       input[type="checkbox"] {
@@ -289,11 +289,10 @@ function initFloatingPanel() {
               <th class="positionCol">Position</th>
               <th class="partCol">Part Number</th>
               <th class="nameCol">Name / Description</th>
-              <th>Designation / Destination</th>
             </tr>
           </thead>
           <tbody id="panelPartsBody">
-            <tr><td colspan="5" class="empty">No data extracted yet.</td></tr>
+            <tr><td colspan="4" class="empty">No data extracted yet.</td></tr>
           </tbody>
         </table>
       </div>
@@ -635,7 +634,7 @@ function renderPanelRows(elements, state) {
   const parts = state.payload?.parts || [];
 
   if (parts.length === 0) {
-    elements.body.innerHTML = '<tr><td colspan="5" class="empty">No matching parts found on the visible page.</td></tr>';
+    elements.body.innerHTML = '<tr><td colspan="4" class="empty">No matching parts found on the visible page.</td></tr>';
     return;
   }
 
@@ -645,8 +644,7 @@ function renderPanelRows(elements, state) {
       panelCheckboxCell(part, state, elements),
       panelTextCell(part.position, "positionCol"),
       panelTextCell(part.partNumber, "partCol"),
-      panelTextCell(part.name, "nameCol"),
-      panelTextCell(part.designation, "")
+      panelTextCell(part.name, "nameCol")
     );
     return row;
   }));
@@ -730,7 +728,7 @@ async function exportPanelRowsToSheet(elements, state) {
 }
 
 function buildPanelCsv(rows) {
-  const headers = ["position", "partNumber", "name", "designation"];
+  const headers = ["position", "partNumber", "name"];
   const lines = [headers.map(csvCell).join(",")];
 
   for (const row of rows) {
@@ -761,7 +759,7 @@ async function copyPanelRows(rows) {
 }
 
 function buildPanelTsv(rows) {
-  const headers = ["position", "partNumber", "name", "designation"];
+  const headers = ["position", "partNumber", "name"];
   const lines = [headers.join("\t")];
 
   for (const row of rows) {

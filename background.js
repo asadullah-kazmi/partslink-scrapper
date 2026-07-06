@@ -57,7 +57,7 @@ function getAuthToken(interactive) {
 }
 
 async function appendSheetRows(spreadsheetId, sheetName, rows, token, didRetry = false) {
-  const range = `${quoteSheetName(sheetName || "Sheet1")}!E:H`;
+  const range = `${quoteSheetName(sheetName || "Sheet1")}!E:G`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   const response = await fetch(url, {
     method: "POST",
@@ -70,10 +70,9 @@ async function appendSheetRows(spreadsheetId, sheetName, rows, token, didRetry =
         ...rows.map((row) => [
           row.position || "",
           row.partNumber || "",
-          row.name || "",
-          row.designation || ""
+          row.name || ""
         ]),
-        ["", "", "", ""]
+        ["", "", ""]
       ]
     })
   });

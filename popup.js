@@ -124,14 +124,14 @@ function renderEmpty() {
   rowCount.textContent = "0";
   candidateCount.textContent = "0";
   selectedCount.textContent = "0";
-  partsBody.innerHTML = '<tr><td colspan="5" class="empty">No data extracted yet.</td></tr>';
+  partsBody.innerHTML = '<tr><td colspan="4" class="empty">No data extracted yet.</td></tr>';
   setActionsEnabled(false);
   setSelectionActionsEnabled(false);
 }
 
 function renderPartsTable(parts) {
   if (parts.length === 0) {
-    partsBody.innerHTML = '<tr><td colspan="5" class="empty">No matching parts found on the visible page.</td></tr>';
+    partsBody.innerHTML = '<tr><td colspan="4" class="empty">No matching parts found on the visible page.</td></tr>';
     return;
   }
 
@@ -141,8 +141,7 @@ function renderPartsTable(parts) {
       checkboxCell(part),
       tableCell(part.position),
       tableCell(part.partNumber),
-      tableCell(part.name),
-      tableCell(part.designation)
+      tableCell(part.name)
     );
     return row;
   }));
@@ -270,7 +269,7 @@ function isPartslinkUrl(url) {
 
 function buildCsv(payload) {
   const rows = (payload.parts || []).filter((part) => selectedPartIds.has(part.id));
-  const headers = ["position", "partNumber", "name", "designation"];
+  const headers = ["position", "partNumber", "name"];
   const lines = [headers.map(csvCell).join(",")];
   for (const row of rows) {
     lines.push(headers.map((header) => csvCell(row[header] ?? "")).join(","));
@@ -284,7 +283,7 @@ function csvCell(value) {
 }
 
 function buildTsv(rows) {
-  const headers = ["position", "partNumber", "name", "designation"];
+  const headers = ["position", "partNumber", "name"];
   const lines = [headers.join("\t")];
 
   for (const row of rows) {

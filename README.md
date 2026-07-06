@@ -18,8 +18,8 @@ A Manifest V3 Chrome extension for extracting data that is already visible while
 5. Review the extracted parts table.
 6. Use **Select all** or row checkboxes to choose parts.
 7. Click **Copy table** to copy selected rows for direct paste into Google Sheets or Excel.
-8. Paste a Google Sheet link, confirm the tab name, then click **Export to Sheet** to append selected rows to columns E-H.
-9. Download CSV for selected rows only. CSV includes `position`, `partNumber`, `name`, and `designation`.
+8. Paste a Google Sheet link, confirm the tab name, then click **Export to Sheet** to append selected rows to columns E-G.
+9. Download CSV for selected rows only. CSV includes `position`, `partNumber`, and `name`.
 10. Download JSON for the full debug payload.
 
 The in-page panel can be dragged by its title bar and resized from the lower-right corner. Use **Minimize** when you want it compact, or click the extension icon again to close it.
@@ -38,7 +38,7 @@ The extension uses the Google Sheets API, so Chrome needs a Google OAuth client 
 6. Replace `REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com` in `manifest.json` with your client ID.
 7. Reload the extension in `chrome://extensions`.
 
-When you export for the first time, Chrome will ask you to authorize Google Sheets access. The extension appends selected rows to the selected tab in columns E-H using these fields: `position`, `partNumber`, `name`, and `designation`.
+When you export for the first time, Chrome will ask you to authorize Google Sheets access. The extension appends selected rows to the selected tab in columns E-G using these fields: `position`, `partNumber`, and `name`.
 
 ## Scope
 
